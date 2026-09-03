@@ -7,7 +7,11 @@ import { Sparkles, MapPin, Loader2, Plus, Search, Map as MapIcon } from 'lucide-
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const getAI = () => {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  return new GoogleGenAI({ apiKey: key });
+};
 
 export default function AIPanel({ trip }: { trip: Trip }) {
   const [query, setQuery] = useState('');
@@ -36,14 +40,19 @@ export default function AIPanel({ trip }: { trip: Trip }) {
         })).filter((p: any) => p.name !== 'Unknown');
         setPlacesResults(formatted);
       } else {
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: `Answer the following question related to a road trip to ${trip.destination.address}: ${query}`,
-          config: {
-            tools: [{ googleSearch: {} }]
-          }
-        });
-        setSearchResult(response.text || 'No answer found.');
+        const ai = getAI();
+        if (!ai) {
+          setSearchResult('AI search is not available — GEMINI_API_KEY is missing.');
+        } else {
+          const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Answer the following question related to a road trip to ${trip.destination.address}: ${query}`,
+            config: {
+              tools: [{ googleSearch: {} }]
+            }
+          });
+          setSearchResult(response.text || 'No answer found.');
+        }
       }
     } catch (error) {
       console.error('AI Search Error:', error);

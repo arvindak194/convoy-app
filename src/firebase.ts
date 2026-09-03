@@ -1,8 +1,26 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, signInAnonymously } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection, query, where, onSnapshot, addDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInAnonymously,
+  signOut,
+  getRedirectResult,
+} from 'firebase/auth';
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  collection,
+  query,
+  where,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  arrayUnion,
+} from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
-import { Capacitor } from '@capacitor/core';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -10,62 +28,43 @@ export const auth = getAuth(app);
 
 export const googleProvider = new GoogleAuthProvider();
 
+/**
+ * Google Sign-In using popup.
+ * signInWithRedirect is fundamentally broken inside Capacitor WebViews
+ * because the redirect destroys the WebView context and cannot return.
+ * signInWithPopup works because Capacitor's allowNavigation config
+ * permits opening the Google auth page within the WebView.
+ */
 export const signInWithGoogle = async () => {
-  try {
-    let user;
-    if (Capacitor.isNativePlatform()) {
-      await signInWithRedirect(auth, googleProvider);
-      return; // Redirect flow will reload the page and onAuthStateChanged will catch the user
-    } else {
-      const result = await signInWithPopup(auth, googleProvider);
-      user = result.user;
-    }
-    
-    await ensureUserProfile(user);
-    return user;
-  } catch (error) {
-    console.error('Error signing in with Google', error);
-    throw error;
-  }
+  const result = await signInWithPopup(auth, googleProvider);
+  const user = result.user;
+  await ensureUserProfile(user);
+  return user;
 };
 
+/**
+ * Anonymous / Guest Sign-In.
+ * This requires "Anonymous" to be enabled in Firebase Console > Authentication > Sign-in method.
+ */
 export const signInGuest = async () => {
-  try {
-    const result = await signInAnonymously(auth);
-    const user = result.user;
-    
-    // Create anonymous user profile
-    const userRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        uid: user.uid,
-        displayName: 'Guest Driver ' + Math.floor(Math.random() * 1000),
-        photoURL: '',
-      });
-    }
-    return user;
-  } catch (error) {
-    console.error('Error signing in anonymously', error);
-    throw error;
-  }
+  const result = await signInAnonymously(auth);
+  const user = result.user;
+  await ensureUserProfile(user);
+  return user;
 };
 
 export const ensureUserProfile = async (user: any) => {
   const userRef = doc(db, 'users', user.uid);
   const userSnap = await getDoc(userRef);
-  
+
   if (!userSnap.exists()) {
     await setDoc(userRef, {
       uid: user.uid,
-      displayName: user.displayName || 'Anonymous User',
+      displayName: user.displayName || 'Guest Driver ' + user.uid.slice(0, 4),
       photoURL: user.photoURL || '',
     });
   }
 };
-
-import { getRedirectResult } from 'firebase/auth';
 
 export const handleAuthRedirect = async () => {
   try {
@@ -77,7 +76,6 @@ export const handleAuthRedirect = async () => {
     console.error('Error handling redirect', error);
   }
 };
-
 
 export const logout = async () => {
   try {
@@ -113,10 +111,14 @@ export interface FirestoreErrorInfo {
       email: string | null;
       photoUrl: string | null;
     }[];
-  }
+  };
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -125,15 +127,16 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
       tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
+      providerInfo:
+        auth.currentUser?.providerData.map((provider) => ({
+          providerId: provider.providerId,
+          displayName: provider.displayName,
+          email: provider.email,
+          photoUrl: provider.photoURL,
+        })) || [],
     },
     operationType,
-    path
+    path,
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
