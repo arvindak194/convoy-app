@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, signInAnonymously } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, collection, query, where, onSnapshot, addDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import { Capacitor } from '@capacitor/core';
@@ -25,6 +25,29 @@ export const signInWithGoogle = async () => {
     return user;
   } catch (error) {
     console.error('Error signing in with Google', error);
+    throw error;
+  }
+};
+
+export const signInGuest = async () => {
+  try {
+    const result = await signInAnonymously(auth);
+    const user = result.user;
+    
+    // Create anonymous user profile
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        uid: user.uid,
+        displayName: 'Guest Driver ' + Math.floor(Math.random() * 1000),
+        photoURL: '',
+      });
+    }
+    return user;
+  } catch (error) {
+    console.error('Error signing in anonymously', error);
     throw error;
   }
 };

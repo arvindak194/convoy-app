@@ -6,6 +6,9 @@ import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { getValhallaRoute } from '../services/routing';
 
+import { Geolocation } from '@capacitor/geolocation';
+import { Capacitor } from '@capacitor/core';
+
 export default function MapContainer({ trip }: { trip: Trip }) {
   const [members, setMembers] = useState<User[]>([]);
   const [stops, setStops] = useState<Stop[]>([]);
@@ -14,26 +17,50 @@ export default function MapContainer({ trip }: { trip: Trip }) {
   // Watch user's own location
   useEffect(() => {
     if (!auth.currentUser) return;
-    const watchId = navigator.geolocation.watchPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        try {
-          const userRef = doc(db, 'users', auth.currentUser!.uid);
-          await updateDoc(userRef, {
-            currentLocation: {
-              lat: latitude,
-              lng: longitude,
-              timestamp: Date.now()
-            }
-          });
-        } catch (error) {
-          console.error("Error updating location", error);
+    
+    let watchId: string | undefined;
+    
+    const startWatching = async () => {
+      try {
+        if (Capacitor.isNativePlatform()) {
+          const perm = await Geolocation.checkPermissions();
+          if (perm.location !== 'granted') {
+            const req = await Geolocation.requestPermissions();
+            if (req.location !== 'granted') return;
+          }
         }
-      },
-      (err) => console.error(err),
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
-    );
-    return () => navigator.geolocation.clearWatch(watchId);
+        
+        watchId = await Geolocation.watchPosition(
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 },
+          async (pos, err) => {
+            if (err || !pos) return;
+            const { latitude, longitude } = pos.coords;
+            try {
+              const userRef = doc(db, 'users', auth.currentUser!.uid);
+              await updateDoc(userRef, {
+                currentLocation: {
+                  lat: latitude,
+                  lng: longitude,
+                  timestamp: Date.now()
+                }
+              });
+            } catch (error) {
+              console.error("Error updating location", error);
+            }
+          }
+        );
+      } catch (e) {
+        console.error('Geolocation error', e);
+      }
+    };
+    
+    startWatching();
+    
+    return () => {
+      if (watchId) {
+        Geolocation.clearWatch({ id: watchId });
+      }
+    };
   }, []);
 
   // Listen to all members' locations

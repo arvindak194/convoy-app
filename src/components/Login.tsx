@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { MapPin } from 'lucide-react';
-import { signInWithGoogle } from '../firebase';
+import { signInWithGoogle, signInGuest } from '../firebase';
 
 export default function Login() {
   return (
@@ -19,7 +19,7 @@ export default function Login() {
         </p>
         <button
           onClick={signInWithGoogle}
-          className="w-full bg-gradient-to-r from-brand-light to-brand-mid hover:from-[#09836a] hover:to-brand-light text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+          className="w-full bg-gradient-to-r from-brand-light to-brand-mid hover:from-[#09836a] hover:to-brand-light text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 mb-3"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -40,6 +40,12 @@ export default function Login() {
             />
           </svg>
           Continue with Google
+        </button>
+        <button
+          onClick={signInGuest}
+          className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+        >
+          Continue as Guest
         </button>
       </motion.div>
     </div>
