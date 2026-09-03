@@ -5,7 +5,8 @@ const config: CapacitorConfig = {
   appName: 'convoy',
   webDir: 'dist',
   server: {
-    androidScheme: 'https'
+    androidScheme: 'https',
+    allowNavigation: ['*.firebaseapp.com', '*.firebase.com', '*.googleapis.com']
   }
 };
 
