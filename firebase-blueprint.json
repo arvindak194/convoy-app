@@ -1,0 +1,104 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the Convoy app",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "currentLocation": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "timestamp": { "type": "number" }
+          }
+        }
+      },
+      "required": ["uid", "displayName"]
+    },
+    "Trip": {
+      "title": "Trip",
+      "description": "A road trip with multiple members",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "destination": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "address": { "type": "string" }
+          },
+          "required": ["lat", "lng", "address"]
+        },
+        "creatorId": { "type": "string" },
+        "members": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "completed"]
+        },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "destination", "creatorId", "members", "status", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A chat message within a trip",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "text", "senderId", "senderName", "timestamp"]
+    },
+    "Stop": {
+      "title": "Stop",
+      "description": "A stop along the route",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "address": { "type": "string" }
+          },
+          "required": ["lat", "lng", "address"]
+        },
+        "addedBy": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "name", "location", "addedBy", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles and their current live location"
+    },
+    "/trips/{tripId}": {
+      "schema": { "$ref": "#/entities/Trip" },
+      "description": "Active and past road trips"
+    },
+    "/trips/{tripId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Chat messages for a specific trip"
+    },
+    "/trips/{tripId}/stops/{stopId}": {
+      "schema": { "$ref": "#/entities/Stop" },
+      "description": "Stops added to a specific trip"
+    }
+  }
+}

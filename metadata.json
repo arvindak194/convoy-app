@@ -1,0 +1,7 @@
+{
+  "name": "Convoy",
+  "description": "A multi-vehicle road trip app with live location sharing, route planning, and chat.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

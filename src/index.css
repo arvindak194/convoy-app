@@ -1,0 +1,16 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Google Sans', 'Product Sans', 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --color-brand-light: #076653;
+  --color-brand-mid: #0c342c;
+  --color-brand-dark: #06231d;
+}
+
+body {
+  @apply text-zinc-100;
+  background: linear-gradient(135deg, var(--color-brand-dark) 0%, var(--color-brand-mid) 50%, var(--color-brand-dark) 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}

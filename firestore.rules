@@ -1,0 +1,111 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isTripMember(tripId) {
+      return isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.members;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName']) &&
+             data.uid is string &&
+             data.displayName is string && data.displayName.size() < 100 &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 1000)) &&
+             (!('currentLocation' in data) || (
+               data.currentLocation is map &&
+               data.currentLocation.keys().hasAll(['lat', 'lng', 'timestamp']) &&
+               data.currentLocation.lat is number &&
+               data.currentLocation.lng is number &&
+               data.currentLocation.timestamp is number
+             ));
+    }
+
+    function isValidTrip(data) {
+      return data.keys().hasAll(['id', 'name', 'destination', 'creatorId', 'members', 'status', 'createdAt']) &&
+             data.id is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.destination is map && data.destination.keys().hasAll(['lat', 'lng', 'address']) &&
+             data.destination.lat is number && data.destination.lng is number && data.destination.address is string && data.destination.address.size() < 500 &&
+             data.creatorId is string &&
+             data.members is list && data.members.size() > 0 && data.members.size() <= 50 &&
+             data.status in ['active', 'completed'] &&
+             data.createdAt is number;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['id', 'text', 'senderId', 'senderName', 'timestamp']) &&
+             data.id is string &&
+             data.text is string && data.text.size() > 0 && data.text.size() < 1000 &&
+             data.senderId is string &&
+             data.senderName is string && data.senderName.size() < 100 &&
+             data.timestamp is number;
+    }
+
+    function isValidStop(data) {
+      return data.keys().hasAll(['id', 'name', 'location', 'addedBy', 'timestamp']) &&
+             data.id is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.location is map && data.location.keys().hasAll(['lat', 'lng', 'address']) &&
+             data.location.lat is number && data.location.lng is number && data.location.address is string && data.location.address.size() < 500 &&
+             data.addedBy is string &&
+             data.timestamp is number;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    
+    match /users/{userId} {
+      // Anyone authenticated can read user profiles to see locations
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == userId;
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == resource.data.uid;
+    }
+
+    match /trips/{tripId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.members;
+      allow create: if isAuthenticated() && 
+                    isValidTrip(request.resource.data) && 
+                    request.resource.data.creatorId == request.auth.uid &&
+                    request.auth.uid in request.resource.data.members;
+      allow update: if isAuthenticated() && 
+                    request.auth.uid in resource.data.members &&
+                    isValidTrip(request.resource.data) &&
+                    request.resource.data.creatorId == resource.data.creatorId &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    match /trips/{tripId}/messages/{messageId} {
+      allow read: if isTripMember(tripId);
+      allow create: if isTripMember(tripId) && 
+                    isValidMessage(request.resource.data) &&
+                    request.resource.data.senderId == request.auth.uid;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /trips/{tripId}/stops/{stopId} {
+      allow read: if isTripMember(tripId);
+      allow create: if isTripMember(tripId) && 
+                    isValidStop(request.resource.data) &&
+                    request.resource.data.addedBy == request.auth.uid;
+      allow update: if false;
+      allow delete: if isTripMember(tripId);
+    }
+  }
+}
