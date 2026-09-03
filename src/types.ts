@@ -42,3 +42,12 @@ export interface Stop {
   addedBy: string;
   timestamp: number;
 }
+
+export interface SavedPlace {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  timestamp: number;
+}

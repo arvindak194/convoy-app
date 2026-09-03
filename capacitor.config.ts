@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     androidScheme: 'https',
-    allowNavigation: ['*.firebaseapp.com', '*.firebase.com', '*.googleapis.com']
+    allowNavigation: ['*.firebaseapp.com', '*.firebase.com', '*.googleapis.com', '*.basemaps.cartocdn.com']
   }
 };
 

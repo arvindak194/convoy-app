@@ -6,6 +6,7 @@ import { Trip } from '../types';
 import { Plus, Users, Navigation, LogOut, MapPin, Calendar } from 'lucide-react';
 import { logout } from '../firebase';
 import LocationSearch from './LocationSearch';
+import SavedPlaces from './SavedPlaces';
 
 export default function Dashboard({ onSelectTrip }: { onSelectTrip: (trip: Trip) => void }) {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -206,6 +207,13 @@ export default function Dashboard({ onSelectTrip }: { onSelectTrip: (trip: Trip)
                 </button>
               </div>
             </div>
+
+            <SavedPlaces 
+              onSelect={(place) => {
+                setDestination(place);
+                setIsCreating(true);
+              }} 
+            />
           </div>
         </div>
       </div>

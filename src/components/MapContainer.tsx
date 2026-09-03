@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import Map, { Marker, Source, Layer } from 'react-map-gl/maplibre';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import { useEffect, useState, useRef } from 'react';
+import { MapContainer as LeafletMap, TileLayer, Marker, Polyline, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import { Trip, User, Stop } from '../types';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, onSnapshot, doc, updateDoc } from 'firebase/firestore';
@@ -9,10 +10,55 @@ import { getValhallaRoute } from '../services/routing';
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
 
+// Fix for default Leaflet icon paths in Vite
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+// Custom icons
+const destinationIcon = L.divIcon({
+  className: 'custom-destination-icon',
+  html: `<div style="width:32px;height:32px;background:#ef4444;border-radius:50%;border:2px solid white;box-shadow:0 4px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;">★</div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+});
+
+const stopIcon = L.divIcon({
+  className: 'custom-stop-icon',
+  html: `<div style="width:24px;height:24px;background:#eab308;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold;">S</div>`,
+  iconSize: [24, 24],
+  iconAnchor: [12, 24],
+});
+
+const createMemberIcon = (member: User, isMe: boolean) => {
+  const bgClass = isMe ? '#09836a' : '#14b8a6';
+  const content = member.photoURL 
+    ? `<img src="${member.photoURL}" style="width:100%;height:100%;object-fit:cover;" />` 
+    : member.displayName.charAt(0).toUpperCase();
+
+  return L.divIcon({
+    className: 'custom-member-icon',
+    html: `
+      <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+        <div style="width:32px;height:32px;border-radius:50%;border:2px solid white;background:${bgClass};overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;z-index:2;">
+          ${content}
+        </div>
+      </div>
+    `,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+};
+
+
 export default function MapContainer({ trip }: { trip: Trip }) {
   const [members, setMembers] = useState<User[]>([]);
   const [stops, setStops] = useState<Stop[]>([]);
-  const [routeGeojson, setRouteGeojson] = useState<any>(null);
+  const [routeCoordinates, setRouteCoordinates] = useState<[number, number][]>([]);
+  const mapRef = useRef<L.Map>(null);
 
   // Watch user's own location
   useEffect(() => {
@@ -107,8 +153,14 @@ export default function MapContainer({ trip }: { trip: Trip }) {
         ];
 
         const geojson = await getValhallaRoute(waypoints);
-        if (geojson) {
-          setRouteGeojson(geojson);
+        if (geojson && geojson.geometry && geojson.geometry.coordinates) {
+          // Extract coordinates and convert [lng, lat] to [lat, lng] for Leaflet Polyline
+          const coords = geojson.geometry.coordinates.map((c: number[]) => [c[1], c[0]]);
+          setRouteCoordinates(coords as [number, number][]);
+          
+          if (mapRef.current && coords.length > 0) {
+            mapRef.current.fitBounds(coords, { padding: [50, 50] });
+          }
         }
       } catch (err) {
         console.error("Route error", err);
@@ -118,29 +170,39 @@ export default function MapContainer({ trip }: { trip: Trip }) {
     fetchRoute();
   }, [members, stops, trip.destination]);
 
+  // Fix map sizing issues in WebView
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      mapRef.current?.invalidateSize();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <Map
-      initialViewState={{
-        longitude: trip.destination.lng,
-        latitude: trip.destination.lat,
-        zoom: 10
-      }}
-      mapStyle="https://tiles.openfreemap.org/styles/dark"
-      style={{ width: '100%', height: '100%' }}
+    <LeafletMap
+      center={[trip.destination.lat, trip.destination.lng]}
+      zoom={10}
+      style={{ width: '100%', height: '100%', backgroundColor: '#1e1e1e' }}
+      ref={mapRef}
+      zoomControl={false}
     >
+      <TileLayer
+        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        attribution="&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors &copy; <a href='https://carto.com/attributions'>CARTO</a>"
+      />
+
       {/* Destination Marker */}
-      <Marker longitude={trip.destination.lng} latitude={trip.destination.lat} anchor="bottom">
-        <div className="w-8 h-8 bg-red-500 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white font-bold pb-0.5">
-          ★
-        </div>
+      <Marker position={[trip.destination.lat, trip.destination.lng]} icon={destinationIcon}>
+        <Popup>{trip.destination.address}</Popup>
       </Marker>
 
       {/* Stops Markers */}
       {stops.map(stop => (
-        <Marker key={stop.id} longitude={stop.location.lng} latitude={stop.location.lat} anchor="bottom">
-          <div className="w-6 h-6 bg-yellow-500 rounded-full border-2 border-white shadow-md flex items-center justify-center text-white text-[10px] font-bold pb-0.5">
-            S
-          </div>
+        <Marker key={stop.id} position={[stop.location.lat, stop.location.lng]} icon={stopIcon}>
+          <Popup>
+            <strong>{stop.name}</strong><br/>
+            {stop.location.address}
+          </Popup>
         </Marker>
       ))}
 
@@ -151,35 +213,22 @@ export default function MapContainer({ trip }: { trip: Trip }) {
         return (
           <Marker 
             key={member.uid} 
-            longitude={member.currentLocation.lng}
-            latitude={member.currentLocation.lat}
-            anchor="center"
+            position={[member.currentLocation.lat, member.currentLocation.lng]}
+            icon={createMemberIcon(member, isMe)}
+            zIndexOffset={isMe ? 1000 : 0}
           >
-            <div className="relative flex items-center justify-center">
-              <div className={`absolute w-10 h-10 rounded-full opacity-30 animate-ping ${isMe ? 'bg-brand-light' : 'bg-teal-500'}`} />
-              <div className={`w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center overflow-hidden ${isMe ? 'bg-brand-light' : 'bg-teal-500'}`}>
-                {member.photoURL ? (
-                  <img src={member.photoURL} alt={member.displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <span className="text-white text-xs font-bold">{member.displayName.charAt(0).toUpperCase()}</span>
-                )}
-              </div>
-            </div>
+            <Popup>{member.displayName}</Popup>
           </Marker>
         );
       })}
 
       {/* Route Line */}
-      {routeGeojson && (
-        <Source id="route" type="geojson" data={routeGeojson}>
-          <Layer
-            id="route-line"
-            type="line"
-            layout={{ 'line-join': 'round', 'line-cap': 'round' }}
-            paint={{ 'line-color': '#076653', 'line-width': 5, 'line-opacity': 0.8 }}
-          />
-        </Source>
+      {routeCoordinates.length > 0 && (
+        <Polyline 
+          positions={routeCoordinates} 
+          pathOptions={{ color: '#076653', weight: 5, opacity: 0.8 }} 
+        />
       )}
-    </Map>
+    </LeafletMap>
   );
 }

@@ -149,13 +149,36 @@ export default function AIPanel({ trip }: { trip: Trip }) {
                 {place.address}
               </p>
               <p className="text-xs text-zinc-500 mb-3 line-clamp-2">{place.description}</p>
-              <button
-                onClick={() => handleAddStop(place)}
-                className="w-full flex items-center justify-center gap-2 bg-brand-mid hover:bg-brand-light/40 text-zinc-200 text-xs font-medium py-2 rounded-lg transition-colors"
-              >
-                <Plus size={14} />
-                Add to Route
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleAddStop(place)}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-brand-mid hover:bg-brand-light/40 text-zinc-200 text-xs font-medium py-2 rounded-lg transition-colors"
+                >
+                  <Plus size={14} />
+                  Add to Route
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!auth.currentUser) return;
+                    try {
+                      await addDoc(collection(db, `users/${auth.currentUser.uid}/savedPlaces`), {
+                        name: place.name,
+                        address: place.address,
+                        lat: place.lat,
+                        lng: place.lng,
+                        timestamp: Date.now()
+                      });
+                      alert('Saved to your places!');
+                    } catch (error) {
+                      console.error('Error saving place', error);
+                    }
+                  }}
+                  className="flex items-center justify-center gap-1.5 bg-brand-mid hover:bg-brand-light/40 text-zinc-200 text-xs font-medium py-2 px-3 rounded-lg transition-colors"
+                  title="Save Place"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
+                </button>
+              </div>
             </motion.div>
           ))}
           

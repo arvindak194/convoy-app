@@ -75,6 +75,10 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == userId;
       allow update: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == resource.data.uid;
+      
+      match /savedPlaces/{placeId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     match /trips/{tripId} {
